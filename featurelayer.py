@@ -8,8 +8,10 @@ Created on Sun Jun 24 02:06:15 2018
 
 import os
 import glob
+import pickle
 import numpy as np
 import pandas as pd
+from sklearn.preprocessing import LabelEncoder
 
 import config
 import datalayer
@@ -24,6 +26,9 @@ items_grp = None
 
 temp_features_folder = os.path.join(
     config.SOURCE, 'data/temporal_features/')
+
+if not os.path.exists(temp_features_folder):
+    os.mkdir(temp_features_folder)
 
 def process_temp_features():
     """
@@ -226,88 +231,42 @@ def get_X_y():
         
         data = pd.concat(data, axis=0)
         data.sort_values('date', inplace=True)
+        
+        u_encoder = LabelEncoder().fit(data['user_id'])
+        i_encoder = LabelEncoder().fit(data['item_id'])
+        
+        data['user_id'] = u_encoder.transform(data['user_id'])
+        data['item_id'] = i_encoder.transform(data['item_id'])
     
         data.set_index(['user_id', 'item_id' ,'date'], inplace=True)
         
+        percent_null = data.isnull().sum() / data.shape[0]
+        data.drop(
+            percent_null[percent_null == 1].index, 
+            axis=1, 
+            inplace=True)
+    
         y = data[['target']]
         X = data.drop(['target', 'Unnamed: 0'], axis=1)
         
         y.to_hdf(data_path, key='y')
         X.to_hdf(data_path, key='X')
+        
+        u_enc_path = os.path.join(config.SOURCE, 'data/u_encoder.pkl')
+        i_enc_path = os.path.join(config.SOURCE, 'data/i_encoder.pkl')
+        
+        pickle.dump(u_encoder, open(u_enc_path, 'wb'))
+        pickle.dump(i_encoder, open(i_enc_path, 'wb'))
     else:
         y = pd.read_hdf(data_path, key='y')
         X = pd.read_hdf(data_path, key='X')
-        
-    X.drop([
-        'user_same_item_n_views',
-        'user_same_item_n_purchases',
-        'user_purchases_same_item_area',
-        'user_purchases_same_item_ken_name',
-        'user_purchases_same_item_small_area'],
-        inplace=True, axis=1)
     
-    percent_null = X.isnull().sum() / X.shape[0]
-    X.drop(percent_null[percent_null == 1].index, axis=1, inplace=True)
-
+        X.drop([
+            'user_same_item_n_views',
+            'user_same_item_n_purchases',
+            'user_purchases_same_item_area',
+            'user_purchases_same_item_ken_name',
+            'user_purchases_same_item_small_area'],
+            inplace=True, axis=1)
+    
     return X, y
-
-#def get_train_test_matrix():
-#    data_path = os.path.join(
-#        config.SOURCE, 
-#        'data/X_y_temporal.hdf')
-#    
-#    X = pd.read_hdf(data_path, key='X').reset_index()[[
-#        'date', 
-#        'user_id', 
-#        'item_id']]
-#    
-#    u_encoder = LabelEncoder().fit(X['user_id'])
-#    i_encoder = LabelEncoder().fit(X['item_id'])
-#    
-#    X['user_id'] = u_encoder.transform(X['user_id'])
-#    X['item_id'] = i_encoder.transform(X['item_id'])
-#    
-#    last_user = X['user_id'].max()
-#    last_item = X['item_id'].max()
-#    
-#    # Split train/test
-#    ''' Split train/val/test '''
-#    train_size = .8
-#    
-#    n = X.shape[0]
-#    
-#    idx_train = int(n * train_size)
-#        
-#    X_train = X.iloc[:idx_train]
-#    X_test = X.iloc[idx_train:]
-#        
-#    print(X_train.shape[0]/X.shape[0], 
-#          X_train['date'].min(), 
-#          X_train['date'].max())
-#    
-#    print(X_test.shape[0]/X.shape[0], 
-#          X_test['date'].min(), 
-#          X_test['date'].max())
-#    
-#    # Create train UserxItem matrix
-#    data = np.concatenate([
-#        np.ones(X_train.shape[0]), [0] ])
-#    row = np.concatenate([
-#        X_train['user_id'].values, [last_user]])
-#    col = np.concatenate([
-#        X_train['item_id'].values, [last_item]])
-#    train = coo_matrix((data, (row, col)))
-#    
-#    # Create test UserxItem  matrix
-#    data = np.concatenate([
-#        np.ones(X_test.shape[0]), [0] ])
-#    row = np.concatenate([
-#        X_test['user_id'].values, [last_user]])
-#    col = np.concatenate([
-#        X_test['item_id'].values, [last_item]])
-#    
-#    test = coo_matrix((data, (row, col)))
-#    
-#    return u_encoder, i_encoder, train, test
-#    
-#    

@@ -11,7 +11,6 @@ import pickle
 import pandas as pd
 import numpy as np
 
-from sklearn.preprocessing import LabelEncoder
 from scipy.sparse import coo_matrix
 
 from lightfm import LightFM
@@ -19,12 +18,13 @@ from lightfm.evaluation import precision_at_k
 from lightfm.evaluation import auc_score
 
 import config
-import temporal_features
+import model_datasets
 
-(u_encoder, i_encoder, train, test) = temporal_features.get_train_test_matrix()
+(_,  _,  _,  _,  _,  _,
+train, val, test) = model_datasets.get_train_val_test()
 
 alpha = 1e-4
-epochs = 70
+epochs = 120
 
 recsys_model = LightFM(
     no_components=300,
@@ -38,7 +38,7 @@ recsys_model = LightFM(
 precision_hist = []
 for epoch in range(epochs):
     recsys_model.fit_partial(train, epochs=1, num_threads=8)
-    precision = precision_at_k(recsys_model, test, num_threads=8).mean()
+    precision = precision_at_k(recsys_model, val, num_threads=8).mean()
     print(f'[{epoch}] {precision}')
     precision_hist.append(precision)
 
